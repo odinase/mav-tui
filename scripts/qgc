@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+version=v5.1.5
+checksum=9a47e4cf269d9e4f897f582f6b19aa7ebf1e9e67c9d68a532a45b541354bc344
+directory="$root/.tools/qgc"
+app="$directory/QGroundControl-$version-x86_64.AppImage"
+verify() { printf '%s  %s\n' "$checksum" "$1" | sha256sum --check --status; }
+case ${1:-} in
+    install)
+        [[ $# == 1 ]] || { echo "Usage: scripts/qgc install" >&2; exit 2; }
+        [[ $(uname -m) == x86_64 ]] || { echo "This installer supports x86_64 Linux" >&2; exit 1; }
+        mkdir -p "$directory"
+        if [[ -f "$app" ]] && verify "$app"; then echo "QGC $version already installed and verified"; exit 0; fi
+        temporary=$(mktemp "$directory/download.XXXXXX")
+        trap 'rm -f -- "$temporary"' EXIT
+        curl --fail --location --retry 3 "https://github.com/mavlink/qgroundcontrol/releases/download/$version/QGroundControl-x86_64.AppImage" -o "$temporary"
+        verify "$temporary" || { echo "QGC SHA-256 mismatch; refusing installation" >&2; exit 1; }
+        chmod +x "$temporary"
+        mv -- "$temporary" "$app"
+        echo "Installed verified QGC $version at $app"
+        ;;
+    deps)
+        [[ $# == 1 ]] || exit 2
+        # Optional, explicit host package installation for Ubuntu 24.04.
+        sudo apt-get update
+        sudo apt-get install -y libfuse2t64 libxcb-xinerama0 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-shape0 libxcb-xfixes0 libxcb-randr0 libxcb-render-util0 \
+            gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl libopengl0
+        ;;
+    run)
+        shift
+        [[ -f "$app" ]] || { echo "Run scripts/qgc install first" >&2; exit 1; }
+        verify "$app" || { echo "QGC checksum mismatch; run scripts/qgc install" >&2; exit 1; }
+        exec "$app" "$@"
+        ;;
+    *) echo "Usage: scripts/qgc {install|deps|run [QGC options]}" >&2; exit 2 ;;
+esac

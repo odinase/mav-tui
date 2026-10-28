@@ -1,0 +1,56 @@
+name: mav-tui-sitl
+
+services:
+  router:
+    image: mav-tui/router:v4-tcp-fix
+    build:
+      context: .
+      dockerfile: docker/router/Dockerfile
+    init: true
+    ports:
+      - "127.0.0.1:5760:5760/tcp"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 5760"]
+      interval: 10s
+      timeout: 1s
+      retries: 15
+    networks: [sitl]
+
+  ardupilot:
+    profiles: [ardupilot]
+    image: mav-tui/ardupilot:Copter-4.7.2
+    build:
+      context: .
+      dockerfile: docker/ardupilot/Dockerfile
+    init: true
+    depends_on:
+      router:
+        condition: service_healthy
+    volumes:
+      - ardupilot-state:/state
+    networks: [sitl]
+    stop_grace_period: 10s
+
+  px4:
+    profiles: [px4]
+    image: mav-tui/px4:v1.17.0
+    build:
+      context: .
+      dockerfile: docker/px4/Dockerfile
+    init: true
+    depends_on:
+      router:
+        condition: service_healthy
+    volumes:
+      - px4-state:/state
+    networks: [sitl]
+    stop_grace_period: 10s
+
+networks:
+  sitl:
+
+volumes:
+  ardupilot-state:
+    name: mav-tui-sitl-ardupilot-state
+  px4-state:
+    name: mav-tui-sitl-px4-state

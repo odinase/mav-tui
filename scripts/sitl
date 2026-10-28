@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+compose=(docker compose --project-directory "$root" -f "$root/compose.yaml")
+usage() { echo "Usage: scripts/sitl {up ardupilot|up px4|build ardupilot|build px4|down|logs [service]|reset ardupilot|reset px4}" >&2; exit 2; }
+valid_sim() { [[ ${1:-} == ardupilot || ${1:-} == px4 ]] || usage; }
+image_for() {
+    case $1 in
+        router) echo mav-tui/router:v4-tcp-fix ;;
+        ardupilot) echo mav-tui/ardupilot:Copter-4.7.2 ;;
+        px4) echo mav-tui/px4:v1.17.0 ;;
+    esac
+}
+case ${1:-} in
+    build)
+        [[ $# == 2 ]] || usage
+        valid_sim "$2"
+        "${compose[@]}" --profile "$2" build router "$2"
+        ;;
+    up)
+        [[ $# == 2 ]] || usage
+        valid_sim "$2"
+        # Build missing images before interrupting a running simulator. Existing
+        # images can start offline; source changes require an explicit `build`.
+        missing=()
+        for service in router "$2"; do
+            if ! docker image inspect "$(image_for "$service")" >/dev/null 2>&1; then
+                missing+=("$service")
+            fi
+        done
+        if [[ ${#missing[@]} -gt 0 ]]; then
+            "${compose[@]}" --profile "$2" build "${missing[@]}"
+        fi
+        "${compose[@]}" --profile ardupilot --profile px4 stop ardupilot px4 router
+        "${compose[@]}" --profile "$2" up -d --wait --no-build --pull never router "$2"
+        echo "$2 started; connect QGC/Rust to tcp://127.0.0.1:5760"
+        ;;
+    down)
+        [[ $# == 1 ]] || usage
+        "${compose[@]}" --profile ardupilot --profile px4 down
+        ;;
+    logs)
+        [[ $# -le 2 ]] || usage
+        "${compose[@]}" --profile ardupilot --profile px4 logs -f "${@:2}"
+        ;;
+    reset)
+        [[ $# == 2 ]] || usage
+        valid_sim "$2"
+        # Explicitly named state only; the other simulator's volume survives.
+        "${compose[@]}" --profile "$2" rm --stop --force "$2"
+        volume="mav-tui-sitl-$2-state"
+        if docker volume inspect "$volume" >/dev/null 2>&1; then
+            docker volume rm "$volume"
+        fi
+        echo "$2 state/logs cleared; start again with scripts/sitl up $2"
+        ;;
+    *) usage ;;
+esac

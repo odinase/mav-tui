@@ -1,0 +1,13 @@
+# Only simulator defaults. Keep GPS/EKF/pre-arm checks enabled.
+MAV_SYSID 1
+SERIAL0_PROTOCOL 2
+FRAME_CLASS 1
+FRAME_TYPE 0
+# Autonomous missions without a transmitter; allow arming/takeoff in AUTO.
+FS_THR_ENABLE 0
+RC_OPTIONS 1
+AUTO_OPTIONS 3
+WPNAV_SPEED 200
+WPNAV_ACCEL 100
+LAND_SPEED 50
+LOG_DISARMED 1

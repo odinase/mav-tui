@@ -1,0 +1,13 @@
+#!/bin/sh
+# Sourced by stock rcS after simulator startup. One MAVLink 2 link to the router.
+param set MAV_SYS_ID 2
+param set MAV_PROTO_VER 2
+param set COM_RC_IN_MODE 4
+param set NAV_RCL_ACT 0
+param set COM_DISARM_LAND 2
+param set-default MPC_XY_CRUISE 2
+param set-default NAV_ACC_RAD 1
+mavlink start -x -u 14556 -o 14561 -t "$SITL_ROUTER_IP" -r 1000000
+mavlink stream -u 14556 -s GLOBAL_POSITION_INT -r 5
+mavlink stream -u 14556 -s EXTENDED_SYS_STATE -r 2
+# PX4's mission manager emits MISSION_CURRENT itself; it is not a named stream.

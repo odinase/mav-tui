@@ -1,0 +1,30 @@
+--- a/src/endpoint.cpp
++++ b/src/endpoint.cpp
+@@ -1684,8 +1684,6 @@
+ 
+ int TcpEndpoint::write_msg(const struct buffer *pbuf)
+ {
+-    struct sockaddr *sock;
+-    socklen_t addrlen;
+ 
+     if (fd < 0) {
+         // skip this endpoint if not connected (e.g. during reconnect)
+@@ -1697,15 +1695,9 @@
+         ;
+     }
+ 
+-    if (this->is_ipv6) {
+-        sock = (struct sockaddr *)&sockaddr6;
+-        addrlen = sizeof(sockaddr6);
+-    } else {
+-        sock = (struct sockaddr *)&sockaddr;
+-        addrlen = sizeof(sockaddr);
+-    }
+-
+-    ssize_t r = ::sendto(fd, pbuf->data, pbuf->len, 0, sock, addrlen);
++    // The connected TCP socket already has its peer address. In v4, accept()
++    // stores IPv6 peers in an IPv4-sized buffer; sendto() then fails with EINVAL.
++    ssize_t r = ::send(fd, pbuf->data, pbuf->len, MSG_NOSIGNAL);
+     if (r == -1) {
+         if (errno != EAGAIN && errno != ECONNREFUSED) {
+             log_error("TCP %s: Error sending tcp packet (%m)", _name.c_str());
